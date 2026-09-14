@@ -9,7 +9,12 @@ from commerce_common.testing import SpyStore
 from shopping_agent import CartItem, NotOffered
 from shopping_agent.executor import ShoppingToolExecutor, build_memory
 from shopping_agent.fencing import STOREFRONT_FENCE
-from shopping_agent.gates import OPTIONS_GATE, PROVENANCE_GATE, provenance_error
+from shopping_agent.gates import (
+    OPTIONS_GATE,
+    PER_ITEM_QUANTITY_GATE,
+    PROVENANCE_GATE,
+    provenance_error,
+)
 from shopping_agent.serialization import SEARCH_EMPTY_HEADER
 
 
@@ -174,7 +179,11 @@ async def test_add_to_cart_cap_applies_across_repeated_adds(executor):
     assert cart_event.data["cart"]["items"][0]["quantity"] == 10
 
     third = await executor.execute("add_to_cart", {"product_id": "p-100", "quantity": 1})
-    assert third.is_error  # already at the limit
+    # Divergence 2: already at the limit is **held**, naming its gate — not an error.
+    # A held outcome and an error are relayed to the model differently, and a refusal
+    # nobody can attribute sends its reader to the application logs.
+    assert third.refused and not third.is_error
+    assert third.blocked == PER_ITEM_QUANTITY_GATE
     assert "limit" in third.result_text
 
 
