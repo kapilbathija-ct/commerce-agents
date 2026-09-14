@@ -4,7 +4,10 @@ build-backend = "hatchling.build"
 
 [project]
 name = "shopping-agent-core"
-version = "0.1.0.dev0"
+# Fork provenance marker. A PEP 440 local version label: `==0.1.0.dev0` in the sibling
+# packages ignores it, so the fork still satisfies their pins, while `pip list` and
+# `direct_url.json` both show which build is installed. No behaviour is changed here.
+version = "0.1.0.dev0+ct.fork.1"
 description = "The shopping agent's library: types, the StorefrontBackend interface, prompt, tool contracts, gates, and the executor every runtime calls."
 requires-python = ">=3.11"
 license = { text = "Apache-2.0" }
