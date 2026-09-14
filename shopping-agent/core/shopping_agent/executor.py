@@ -158,7 +158,7 @@ class ShoppingToolExecutor(BaseToolExecutor):
     async def _get_cart(self, _: dict[str, Any]) -> ToolOutcome:
         return self._fenced(cart_payload(await self._backend.get_cart(self._session)))
 
-    async def cart_decision(self, tool: str, product_id: str) -> CartGateDecision:
+    async def cart_decision(self, tool: str, tool_input: dict[str, Any]) -> CartGateDecision:
         """The gate chain's answer for one cart call. **The seam a deployment overrides.**
 
         Forked: the three cart writes below no longer decide their own precedence, so this
@@ -166,6 +166,11 @@ class ShoppingToolExecutor(BaseToolExecutor):
         ``REFERENCE_ORDERING`` — the upstream order, named rather than inlined — and an
         override replaces it wholesale. There is no merging of the two: exactly one
         decision source answers any single call.
+
+        ``tool_input`` is the whole validated argument dict rather than the product id
+        alone, so a gate can read the quantity a call asked for. A seam that passed only
+        the id would make every quantity question invisible to the chain and answerable
+        only below the lock.
 
         Evaluated inside ``gate_phase()``, which makes the phase and the per-session cart
         lock mutually exclusive at runtime; a gate that tried to write from in here raises
@@ -178,7 +183,7 @@ class ShoppingToolExecutor(BaseToolExecutor):
                 config=self._config,
                 session=self._session,
                 state=self._state,
-                product_id=product_id,
+                product_id=str(tool_input.get("product_id", "")),
             )
 
     async def _add_to_cart(self, tool_input: dict[str, Any]) -> ToolOutcome:
@@ -188,7 +193,7 @@ class ShoppingToolExecutor(BaseToolExecutor):
             session=self._session,
             product_id=product_id,
             quantity=int(tool_input.get("quantity") or 1),
-            decision=await self.cart_decision("add_to_cart", product_id),
+            decision=await self.cart_decision("add_to_cart", tool_input),
         )
 
     async def _update_cart_item(self, tool_input: dict[str, Any]) -> ToolOutcome:
@@ -198,7 +203,7 @@ class ShoppingToolExecutor(BaseToolExecutor):
             session=self._session,
             product_id=product_id,
             quantity=int(tool_input.get("quantity") or 1),
-            decision=await self.cart_decision("update_cart_item", product_id),
+            decision=await self.cart_decision("update_cart_item", tool_input),
         )
 
     async def _remove_from_cart(self, tool_input: dict[str, Any]) -> ToolOutcome:
@@ -207,7 +212,7 @@ class ShoppingToolExecutor(BaseToolExecutor):
             backend=self._backend,
             session=self._session,
             product_id=product_id,
-            decision=await self.cart_decision("remove_from_cart", product_id),
+            decision=await self.cart_decision("remove_from_cart", tool_input),
         )
 
     # -- customer context, orders, policies, fulfillment ---------------------------------
